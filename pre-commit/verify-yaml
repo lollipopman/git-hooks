@@ -91,6 +91,11 @@ function main {
 	done
 	shift $((OPTIND - 1))
 
+	if ! command -v yamlfmt >/dev/null 2>&1; then
+		printf 'Error: yamlfmt command not found in path, please install\n'
+		return 1
+	fi
+
 	git diff --staged --name-only | mapfile -t staged_files
 
 	declare -i found_unformatted=0
