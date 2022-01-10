@@ -1,0 +1,125 @@
+#!/bin/bash
+
+set -o errexit
+set -o nounset
+set -o pipefail
+shopt -s lastpipe
+
+USAGE=$(
+	cat <<-EOF
+		This is a git pre-commit hook which checks yaml files for correct syntax
+		and format by running them through yamlfmt.
+	EOF
+)
+
+function usage {
+	cat <<-EOF
+
+		${USAGE}
+
+		usage: ${0}
+		  -h this message
+		  -i install git hook in current repo
+		  -u uninstall git hook from current repo
+	EOF
+}
+
+function install {
+	local git_dir
+	local hook_path
+	local hook_dst
+
+	if ! git_dir=$(git rev-parse --absolute-git-dir); then
+		printf 'Error: unable to find git repository in "%s"!\n' ~+ >&2
+		return 1
+	fi
+	hook_path=$(readlink -f "${0}")
+	hook_dst="${git_dir}"'/hooks/pre-commit'
+	if [[ -e "${hook_dst}" ]]; then
+		printf 'Error: a hook is already installed: %s\n' "${hook_dst}" >&2
+		return 1
+	fi
+	if ! cp "${hook_path}" "${hook_dst}"; then
+		printf 'Error: unable to install hook in "%s"\n' "${hook_dst}" >&2
+		return 1
+	fi
+	printf 'Hook installed: "%s"\n' "${hook_dst}"
+	return 0
+}
+
+function uninstall {
+	local git_dir
+	local hook_dst
+
+	if ! git_dir=$(git rev-parse --absolute-git-dir); then
+		printf 'Error: unable to find git repository in "%s"!\n' ~+ >&2
+		return 1
+	fi
+	hook_dst="${git_dir}"'/hooks/pre-commit'
+	if ! rm "${hook_dst}"; then
+		printf 'Error: unable to uninstall hook from "%s"\n' "${hook_dst}" >&2
+		return 1
+	fi
+	printf 'Hook uninstalled\n'
+	return 0
+}
+
+function main {
+	while getopts ":hiu" opt; do
+		case "${opt}" in
+		h)
+			usage
+			return
+			;;
+		i)
+			install
+			return
+			;;
+		u)
+			uninstall
+			return
+			;;
+		\?)
+			usage 1>&2
+			return 1
+			;;
+		:)
+			printf "Option -%s requires an argument\n" "${OPTARG}" >&2
+			return 1
+			;;
+		esac
+	done
+	shift $((OPTIND - 1))
+
+	git diff --staged --name-only | mapfile -t staged_files
+
+	declare -i found_unformatted=0
+	declare -i found_broken=0
+	for staged_file in "${staged_files[@]}"; do
+		if ! yamlfmt_diff=$(git show :"$staged_file" | yamlfmt -d); then
+			printf '%s # Syntax error, unable to be read by yamlfmt\n' "$staged_file"
+			found_broken+=1
+		elif [[ "$yamlfmt_diff" == '' ]]; then
+			continue
+		else
+			printf '%s # Needs to be formatted with yamlfmt\n' "$staged_file"
+			found_unformatted+=1
+		fi
+	done
+	if ((found_broken > 0 || found_unformatted > 0)); then
+		printf '\npre-commit yamlfmt hook:\n'
+		if ((found_broken > 0)); then
+			printf '\tFound (%d) yaml files with syntax errors, ' "$found_broken"
+			printf 'please correct before committing\n'
+		fi
+		if ((found_unformatted > 0)); then
+			printf '\tFound (%d) unformatted yaml files, ' "$found_unformatted"
+			printf 'please format with yamlfmt before committing\n'
+		fi
+		return 1
+	else
+		return 0
+	fi
+}
+
+main "$@"
