@@ -101,6 +101,8 @@ function main {
 	declare -i found_unformatted=0
 	declare -i found_broken=0
 	for staged_file in "${staged_files[@]}"; do
+		# Use git-show(1) to view the staged file, which may be different than the
+		# file on disk
 		if ! yamlfmt_diff=$(git show :"$staged_file" | yamlfmt -d); then
 			printf '%s # Syntax error, unable to be read by yamlfmt\n' "$staged_file"
 			found_broken+=1
