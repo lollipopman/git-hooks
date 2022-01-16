@@ -8,7 +8,7 @@ shopt -s lastpipe
 USAGE=$(
 	cat <<-EOF
 		This is a git pre-commit hook which checks yaml files for correct syntax
-		and format by running them through yamlfmt.
+		and format by running them through vinyl.
 	EOF
 )
 
@@ -91,8 +91,8 @@ function main {
 	done
 	shift $((OPTIND - 1))
 
-	if ! command -v yamlfmt >/dev/null 2>&1; then
-		printf 'Error: yamlfmt command not found in path, please install\n'
+	if ! command -v vinyl >/dev/null 2>&1; then
+		printf 'Error: vinyl command not found in path, please install\n'
 		return 1
 	fi
 
@@ -103,25 +103,25 @@ function main {
 	for staged_file in "${staged_files[@]}"; do
 		# Use git-show(1) to view the staged file, which may be different than the
 		# file on disk
-		if ! yamlfmt_diff=$(git show :"$staged_file" | yamlfmt -d); then
-			printf '%s # Syntax error, unable to be read by yamlfmt\n' "$staged_file"
+		if ! vinyl_diff=$(git show :"$staged_file" | vinyl -d); then
+			printf '%s # Syntax error, unable to be read by vinyl\n' "$staged_file"
 			found_broken+=1
-		elif [[ "$yamlfmt_diff" == '' ]]; then
+		elif [[ "$vinyl_diff" == '' ]]; then
 			continue
 		else
-			printf '%s # Needs to be formatted with yamlfmt\n' "$staged_file"
+			printf '%s # Needs to be formatted with vinyl\n' "$staged_file"
 			found_unformatted+=1
 		fi
 	done
 	if ((found_broken > 0 || found_unformatted > 0)); then
-		printf '\npre-commit yamlfmt hook:\n'
+		printf '\npre-commit vinyl hook:\n'
 		if ((found_broken > 0)); then
 			printf '\tFound (%d) yaml files with syntax errors, ' "$found_broken"
 			printf 'please correct before committing\n'
 		fi
 		if ((found_unformatted > 0)); then
 			printf '\tFound (%d) unformatted yaml files, ' "$found_unformatted"
-			printf 'please format with yamlfmt before committing\n'
+			printf 'please format with vinyl before committing\n'
 		fi
 		return 1
 	else
